@@ -4,8 +4,8 @@
 #SBATCH --mem-per-cpu=1000M
 #SBATCH --time=02:00:00
 #SBATCH --job-name=fastp
-#SBATCH --output=/data/users/nvahdani/flow_project/fastp_newversion/output_fastp_%j.o
-#SBATCH --error=/data/users/nvahdani/flow_project/fastp_newversion/error_fastp_%j.e
+#SBATCH --output=/fastp_newversion/output_fastp_%j.o
+#SBATCH --error=/fastp_newversion/error_fastp_%j.e
 
 ##module load UHTS/Quality_control/fastp/0.19.5;
 
