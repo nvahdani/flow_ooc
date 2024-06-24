@@ -8,23 +8,23 @@
 #SBATCH --job-name=mapping 
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=end
-#SBATCH --error=/data/users/nvahdani/flow_project/mapping110/error_mapping110trimmed_%j.e
-#SBATCH --output=/data/users/nvahdani/flow_project/mapping110/output_mapping110trimmed_%j.o
+#SBATCH --error=/mapping110/error_mapping110trimmed_%j.e
+#SBATCH --output=/mapping110/output_mapping110trimmed_%j.o
 
 #load module
 module load UHTS/Aligner/hisat/2.2.1
 #reference genome: Hisat2 indexed reference with transcripts
-REF_GENOME="/data/users/nvahdani/flow_project/index110/output/genome_tran"
-OUTPUT_DIR="/data/users/nvahdani/flow_project/mapping110/output_trimmed"
+REF_GENOME="/index110/output/genome_tran"
+OUTPUT_DIR="/mapping110/output_trimmed"
 #creat an array on the raw data
-R1=($(ls -1 /data/users/nvahdani/flow_project/reads/trimmed_data_newversion/*R1*.trimmed.fastq.gz))
+R1=($(ls -1 /reads/trimmed_data_newversion/*R1*.trimmed.fastq.gz))
 filename=$(basename "${R1[$SLURM_ARRAY_TASK_ID]}"| sed 's/_L.*//')
 base=${filename%.*}
 echo $base
 
 echo -e "${R1[$SLURM_ARRAY_TASK_ID]}"
 
-R2=($(ls -1 /data/users/nvahdani/flow_project/reads/trimmed_data_newversion/*R2*.trimmed.fastq.gz))
+R2=($(ls -1 /reads/trimmed_data_newversion/*R2*.trimmed.fastq.gz))
 echo -e "${R2[$SLURM_ARRAY_TASK_ID]}"
 #check the output_DIR
 
