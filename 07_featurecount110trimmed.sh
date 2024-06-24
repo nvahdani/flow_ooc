@@ -7,14 +7,14 @@
 #SBATCH --job-name=featurecount
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=end
-#SBATCH --error=/data/users/nvahdani/flow_project/featurecount110/error_counttrimmed_%j.e
-#SBATCH --output=/data/users/nvahdani/flow_project/featurecount110/output_counttrimmed_%j.o
+#SBATCH --error=/featurecount110/error_counttrimmed_%j.e
+#SBATCH --output=/featurecount110/output_counttrimmed_%j.o
 
 
 
-BAMDIR="/data/users/nvahdani/flow_project/bamsort110/output_trimmed/*.bam"
-OUTPUT_DIR="/data/users/nvahdani/flow_project/featurecount110/output_trimmed"
-Annotation_DIR="/data/users/nvahdani/flow_project/reference110"
+BAMDIR="/bamsort110/output_trimmed/*.bam"
+OUTPUT_DIR="/featurecount110/output_trimmed"
+Annotation_DIR="/reference110"
 OUTPUT_FILE="${OUTPUT_DIR}/gene_counts.txt"
 
 
