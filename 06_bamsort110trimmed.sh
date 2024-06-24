@@ -8,14 +8,14 @@
 #SBATCH --job-name=sorting
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=end
-#SBATCH --error=/data/users/nvahdani/flow_project/bamsort110/error_sorting_%j.e
-#SBATCH --output=/data/users/nvahdani/flow_project/bamsort110/output_sorting_%j.o
+#SBATCH --error=/bamsort110/error_sorting_%j.e
+#SBATCH --output=/bamsort110/output_sorting_%j.o
 
 
 # define variables
-BAMDIR="/data/users/nvahdani/flow_project/samtobam_110/output_trimmed"
-OUTDIR="/data/users/nvahdani/flow_project/bamsort110/output_trimmed"
-R1=($(ls -1 /data/users/nvahdani/flow_project/reads/trimmed_data_newversion/*R1*.trimmed.fastq.gz))
+BAMDIR="/samtobam_110/output_trimmed"
+OUTDIR="/bamsort110/output_trimmed"
+R1=($(ls -1 /reads/trimmed_data_newversion/*R1*.trimmed.fastq.gz))
 filename=$(basename "${R1[$SLURM_ARRAY_TASK_ID]}"| sed 's/_L.*//')
 base=${filename%.*}
 
