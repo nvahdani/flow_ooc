@@ -7,10 +7,10 @@
 #SBATCH --job-name=indexing110
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=end
-#SBATCH --error=/data/users/nvahdani/flow_project/index110/error_indexing_%j.e
-#SBATCH --output=/data/users/nvahdani/flow_project/index110/output_indexing_%j.o
+#SBATCH --error=/index110/error_indexing_%j.e
+#SBATCH --output=/index110/output_indexing_%j.o
 
 module add UHTS/Aligner/hisat/2.2.1;
 
 
-hisat2-build -p 16 --exon /data/users/nvahdani/flow_project/reference110/genome.exon --ss /data/users/nvahdani/flow_project/reference110/genome.ss /data/users/nvahdani/flow_project/reference110/genome.fa /data/users/nvahdani/flow_project/index110/genome_tran
+hisat2-build -p 16 --exon /reference110/genome.exon --ss /reference110/genome.ss /data/users/nvahdani/flow_project/reference110/genome.fa /index110/genome_tran
