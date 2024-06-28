@@ -8,13 +8,13 @@
 #SBATCH --job-name=sorting
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=end
-#SBATCH --error=/data/users/nvahdani/flow_project/meta-analysis/bamsort/error_sorting_%j.e
-#SBATCH --output=/data/users/nvahdani/flow_project/meta-analysis/bamsort/output_sorting_%j.o
+#SBATCH --error=/meta-analysis/bamsort/error_sorting_%j.e
+#SBATCH --output=/meta-analysis/bamsort/output_sorting_%j.o
 
 
 # define variables
-BAMDIR="/data/users/nvahdani/flow_project/meta-analysis/samtobam_unstranded"
-OUTDIR="/data/users/nvahdani/flow_project/meta-analysis/bamsort_unstranded"
+BAMDIR="/meta-analysis/samtobam_unstranded"
+OUTDIR="/meta-analysis/bamsort_unstranded"
 mkdir -p $OUTDIR
 
 ReadArray=($BAMDIR/*_mapping.bam)
