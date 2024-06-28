@@ -16,8 +16,6 @@ module load SRA-Toolkit/3.0.5-gompi-2021a;
 # Define accession list file
 ACCESSION_LIST=/meta-analysis/data_elife/accession_list.txt
  
- 
- 
 # Define output directory
 OUTPUT_DIR="/meta-analysis/data_elife/raw_fastq"
  
@@ -27,9 +25,10 @@ mkdir -p $OUTPUT_DIR
 # Split accession list into arrays
 ACCESSIONS=($(cat $ACCESSION_LIST))
  
-# Download files from accession list
+# Download files from the accession list
 ACCESSION=${ACCESSIONS[$SLURM_ARRAY_TASK_ID]}
 echo "Downloading $ACCESSION"
-prefetch $ACCESSION --max-size 40G
+prefetch $ACCESSION --max-size 40G 
+# Convert to fastq format
 fasterq-dump --threads 8 --outdir $OUTPUT_DIR $ACCESSION 
 echo "Downloaded $ACCESSION"
