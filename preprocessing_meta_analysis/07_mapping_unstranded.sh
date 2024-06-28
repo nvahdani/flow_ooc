@@ -12,7 +12,7 @@
 #load module
 module load HISAT2/2.2.1-gompi-2021a ;
 #reference genome: Hisat2 indexed reference with transcripts
-REF_GENOME="/data/users/nvahdani/flow_project/index110/output/genome_tran"
+REF_GENOME="/index110/output/genome_tran"
 OUTPUT_DIR="/meta-analysis/mapping_unstranded"
 INPUT_DIR=/meta-analysis/data_elife/trimmed_fastq
 mkdir -p $OUTPUT_DIR
