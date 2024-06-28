@@ -6,9 +6,12 @@
 #SBATCH --output=/multiqc_secondupload/output_multiqc_secondupload_%j.o
 #SBATCH --error=/multiqc_secondupload/error_multiqc_secondupload_%j.e
 
-module load UHTS/Analysis/MultiQC/1.8
+# Define directories
 QC_REPORTS_DIR="/fastqc_secondupload/output/*_fastqc.zip"
 OUTPUT_DIR="/multiqc_secondupload/output"
+
+# Load module and run multiqc
+module load UHTS/Analysis/MultiQC/1.8
 multiqc $QC_REPORTS_DIR -o $OUTPUT_DIR
 
 echo "MultiQC report generated in $OUTPUT_DIR"
