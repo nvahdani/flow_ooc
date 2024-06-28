@@ -6,9 +6,12 @@
 #SBATCH --output=/multiqc_newtrim/output_multiqc_newtrim_%j.o
 #SBATCH --error=/multiqc_newtrim/error_multiqc_newtrim_%j.e
 
-module load UHTS/Analysis/MultiQC/1.8
+# Define the directories
 QC_REPORTS_DIR="/fastqc_newtrim/output/*_fastqc.zip"
 OUTPUT_DIR="/multiqc_newtrim/output"
+
+# Load module and run multiqc
+module load UHTS/Analysis/MultiQC/1.8
 multiqc $QC_REPORTS_DIR -o $OUTPUT_DIR
 
 echo "MultiQC report generated in $OUTPUT_DIR"
