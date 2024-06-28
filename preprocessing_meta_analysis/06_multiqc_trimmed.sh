@@ -8,10 +8,13 @@
 #SBATCH --output=/meta-analysis/multiqc_trimmed_elife/output_multiqc_elife_%j.o
 #SBATCH --error=/meta-analysis/multiqc_trimmed_elife/error_multiqc_elife_%j.e
 
-module load MultiQC/1.11-foss-2021a;
+# Define directories
 QC_REPORTS_DIR="/meta-analysis/fastq_trimmed_elife/*_fastqc.zip"
 OUTPUT_DIR="/meta-analysis/multiqc_trimmed_elife"
 mkdir -p $OUTPUT_DIR
+
+# Load the module
+module load MultiQC/1.11-foss-2021a;
 multiqc $QC_REPORTS_DIR -o $OUTPUT_DIR
 
 echo "MultiQC report generated in $OUTPUT_DIR"
