@@ -5,12 +5,12 @@
 #SBATCH --mem-per-cpu=1000MB
 #SBATCH --time=01:00:00
 #SBATCH --job-name=multiqc
-#SBATCH --output=/data/users/nvahdani/flow_project/meta-analysis/multiqc_trimmed_elife/output_multiqc_elife_%j.o
-#SBATCH --error=/data/users/nvahdani/flow_project/meta-analysis/multiqc_trimmed_elife/error_multiqc_elife_%j.e
+#SBATCH --output=/meta-analysis/multiqc_trimmed_elife/output_multiqc_elife_%j.o
+#SBATCH --error=/meta-analysis/multiqc_trimmed_elife/error_multiqc_elife_%j.e
 
 module load MultiQC/1.11-foss-2021a;
-QC_REPORTS_DIR="/data/users/nvahdani/flow_project/meta-analysis/fastq_trimmed_elife/*_fastqc.zip"
-OUTPUT_DIR="/data/users/nvahdani/flow_project/meta-analysis/multiqc_trimmed_elife"
+QC_REPORTS_DIR="/meta-analysis/fastq_trimmed_elife/*_fastqc.zip"
+OUTPUT_DIR="/meta-analysis/multiqc_trimmed_elife"
 mkdir -p $OUTPUT_DIR
 multiqc $QC_REPORTS_DIR -o $OUTPUT_DIR
 
