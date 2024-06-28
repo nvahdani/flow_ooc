@@ -8,14 +8,17 @@
 #SBATCH --error=/meta-analysis/mapping_reverse_stranded/error_mapping_trimmed_%j.e
 #SBATCH --output=/meta-analysis/mapping_reverse_stranded/output_mapping_trimmed_%j.o
 
-#load module
-module load HISAT2/2.2.1-gompi-2021a ;
+# Define the directories
 #reference genome: Hisat2 indexed reference with transcripts
 REF_GENOME="/index110/output/genome_tran"
 OUTPUT_DIR="/meta-analysis/mapping_reverse_stranded"
 INPUT_DIR=/meta-analysis/data_elife/trimmed_fastq
 mkdir -p $OUTPUT_DIR
-#creat an array on the raw data
+
+# Load modul
+module load HISAT2/2.2.1-gompi-2021a ;
+
+# Create an array of the raw data
 ReadArray=($INPUT_DIR/*.trimmed.fastq)
 
 # Select the file corresponding to the SLURM array task ID
