@@ -13,8 +13,8 @@
 
 
 # define variables
-BAMDIR="/meta-analysis/samtobam_unstranded"
-OUTDIR="/meta-analysis/bamsort_unstranded"
+BAMDIR="/meta-analysis/samtobam_reverse_stranded"
+OUTDIR="/meta-analysis/bamsort_reverse_stranded"
 mkdir -p $OUTDIR
 
 ReadArray=($BAMDIR/*_mapping.bam)
