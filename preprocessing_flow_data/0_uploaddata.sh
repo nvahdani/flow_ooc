@@ -6,4 +6,5 @@
 #SBATCH --output=/reads/data_secondupload/output_secondupload_%j.o
 #SBATCH --error=/reads/data_secondupload/error_secondupload_%j.e
 
-wget -i /data/users/nvahdani/flow_project/reads/urls.txt -P /data/users/nvahdani/flow_project/reads/data_secondupload 
+# Download the data from the NGS facility website
+wget -i /reads/urls.txt -P /reads/data_secondupload 
