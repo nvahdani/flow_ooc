@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 #SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=1000M
 #SBATCH --time=02:00:00
@@ -7,11 +6,12 @@
 #SBATCH --output=/fastp_newversion/output_fastp_%j.o
 #SBATCH --error=/fastp_newversion/error_fastp_%j.e
 
-##module load UHTS/Quality_control/fastp/0.19.5;
+# Define directories
+INPUT_DIR=/reads/data
+OUTPUT_DIR=/reads/trimmed_data_newversion
 
-
-INPUT_DIR=/data/users/nvahdani/flow_project/reads/data
-OUTPUT_DIR=/data/users/nvahdani/flow_project/reads/trimmed_data_newversion
+# load module and remove the adapters from each file
+module load UHTS/Quality_control/fastp/0.19.5;
 
 for R1 in $INPUT_DIR/*_R1_*.fastq.gz
 do
@@ -20,7 +20,7 @@ do
     TRIMMED_R1="$OUTPUT_DIR/$(basename $R1 .fastq.gz).trimmed.fastq.gz"
     TRIMMED_R2="$OUTPUT_DIR/$(basename $R2 .fastq.gz).trimmed.fastq.gz"
       # Run fastp
-    /data/courses/rnaseq_course/tools/fastp -i $R1 -I $R2 -o $TRIMMED_R1 -O $TRIMMED_R2 --detect_adapter_for_pe
+    fastp -i $R1 -I $R2 -o $TRIMMED_R1 -O $TRIMMED_R2 --detect_adapter_for_pe
 
     echo "Processed $R1 and $R2"
 done
