@@ -5,7 +5,6 @@
 #SBATCH --mem-per-cpu=1000M
 #SBATCH --time=03:00:00
 #SBATCH --job-name=fastqc
-#SBATCH --mail-user=negar.vahdani@students.unibe.ch
 #SBATCH --mail-type=begin,end
 #SBATCH --output=/meta-analysis/fastq_elife/error_fastqc_elife_%j.e
 #SBATCH --error=/meta-analysis/fastq_elife/output_fastqc_elife%j.o
