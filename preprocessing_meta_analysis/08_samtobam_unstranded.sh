@@ -7,11 +7,11 @@
 #SBATCH --job-name=samtobam
 #SBATCH --mail-user=negar.vahdani@unibe.ch
 #SBATCH --mail-type=begin,end
-#SBATCH --output=/data/users/nvahdani/flow_project/meta-analysis/samtobam_unstranded/output_samtobam_trimmed%j.o
-#SBATCH --error=/data/users/nvahdani/flow_project/meta-analysis/samtobam_unstranded/error_samtobam_trimmed%j.e
+#SBATCH --output=/meta-analysis/samtobam_unstranded/output_samtobam_trimmed%j.o
+#SBATCH --error=/meta-analysis/samtobam_unstranded/error_samtobam_trimmed%j.e
 
-OUTDIR="/data/users/nvahdani/flow_project/meta-analysis/samtobam_unstranded"
-SAMDIR="/data/users/nvahdani/flow_project/meta-analysis/mapping_unstranded"
+OUTDIR="/meta-analysis/samtobam_unstranded"
+SAMDIR="/meta-analysis/mapping_unstranded"
 mkdir -p $OUTDIR
 
 ReadArray=($SAMDIR/*_mapping.sam)
