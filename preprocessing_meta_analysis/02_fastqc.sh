@@ -9,7 +9,7 @@
 #SBATCH --output=/meta-analysis/fastq_elife/error_fastqc_elife_%j.e
 #SBATCH --error=/meta-analysis/fastq_elife/output_fastqc_elife%j.o
 
-#load the module and run fastqc
+# Load the module and run fastqc
 module load FastQC/0.11.9-Java-11;
 fastqc -o /meta-analysis/fastq_elife -f fastq /meta-analysis/data_elife/raw_fastq/*.fastq
 
