@@ -1,0 +1,742 @@
+---
+title: "Comparative Transcriptomics Analysis Studying the Effect of Directionality of Flow on the Endothelial Cells"
+author: Negar Vahdani
+date: June, 2024
+output:
+  html_notebook:
+    theme: cerulean
+    toc: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    fig_width: 10
+    fig_height: 10
+---
+
+# Clean Memory, set working directory and load libraries
+
+```{r}
+#| label: load_libraries
+#| include: true
+#Clear Memory and set the working directory
+rm(list=ls())
+gc()
+setwd("/Users/negarvahdani/Deseq2")
+dir.create("results", recursive = TRUE)
+
+
+#load libraries
+library(dplyr)
+library(readxl)
+library(DESeq2)
+library(biomaRt)
+library(ggplot2)
+library(ggrepel)
+library(ComplexHeatmap)
+library(clusterProfiler)
+library(tibble)
+library(tidyverse)
+library(matrixStats)
+```
+
+# Import the data and prepare the metadata
+
+```{r}
+#| label: prepare_data
+#| include: true
+
+
+#import data
+counts110_trimmed <-read.delim("/Users/negarvahdani/gene_counts_ref110_trimmed.txt",sep = "\t", stringsAsFactor = FALSE, header= TRUE, fill = TRUE, row.names = 1)
+
+#remove the columns and the rows of data containing sequencing information
+counts110_trimmed_colremove <- counts110_trimmed %>% select(-c(1:5))
+
+#remove the prefix and suffix of the the column name
+colnames(counts110_trimmed_colremove) <- gsub("X.data.users.nvahdani.flow_project.bamsort110.output_trimmed.", "", colnames(counts110_trimmed_colremove))
+colnames(counts110_trimmed_colremove) <-sub(".sorted.bam", "", colnames(counts110_trimmed_colremove))
+
+#check the column names
+head(counts110_trimmed_colremove)
+colnames(counts110_trimmed_colremove)
+
+
+#load the metadata and check the column names
+new_metadata <- read.delim("/Users/negarvahdani/new_metadata.txt", sep = "\t", stringsAsFactor = FALSE, header= TRUE, fill = TRUE, row.names = 1)
+colnames(counts110_trimmed_colremove) %in% rownames(new_metadata) # check if the column names are the same as the row names of the metadata
+identical(colnames(counts110_trimmed_colremove), rownames(new_metadata)) # check if the column names are the same as the row names of the metadata
+new_metadata$flow_time <- paste0(new_metadata$flow_profile, "_", new_metadata$time) #create a new column with the flow profile and time
+#convert the columns to a factor
+new_metadata$flow_time <- factor(new_metadata$flow_time) 
+new_metadata$flow_profile <- factor(new_metadata$flow_profile)
+head(new_metadata)
+```
+
+# Make the Deseq2 object and filter the low expressed genes
+
+```{r}
+#| label: Desq2_analysis
+#| include: true
+#make DESeq2 object
+
+dds_flow_time <- DESeqDataSetFromMatrix(countData = counts110_trimmed_colremove,
+                                        colData = new_metadata,
+                                        design= ~ flow_time)
+#remove the low expressed genes and check the no. of the removed columns
+#set threshold and no. of samples
+threshold <- 5
+min_samples <- 3
+
+#calculate the sum of counts across all samples for each gene
+gene_counts <- rowSums(counts(dds_flow_time))
+
+#create a logical vector indicating whether each gene meets the criteria
+keep_genes <- gene_counts >= threshold
+
+#subset the DESeqDataSet
+dds_filtered <- dds_flow_time[keep_genes,]
+
+#DESeq2 analysis
+dds_flow_time <- DESeq(dds_flow_time)
+
+#check the lists the coefficients
+print(resultsNames(dds_flow_time)) 
+
+```
+
+# Run Desq2 analysis
+
+```{r}
+#| label: shrink log fold changes using ashr method
+#| include: true
+#extract the results for the comparison of the flow profile and time
+#tilter 24h vs pump 24h
+res_uni_bidirectional_24 <- lfcShrink(dds_flow_time,parallel = TRUE, contrast=c("flow_time", "bidirectional_24","unidirectional_24"), type="ashr")
+res_uni_bidirectional_24  <- as.data.frame(res_uni_bidirectional_24 ) #convert the results to a data frame
+head(res_uni_bidirectional_24) #check the first rows
+
+#tilter 4h vs pump 4h
+res_uni_bidirectional_4 <- lfcShrink(dds_flow_time,parallel = TRUE, contrast=c("flow_time", "bidirectional_4","unidirectional_4"), type="ashr") 
+res_uni_bidirectional_4  <- as.data.frame(res_uni_bidirectional_4 ) #convert the results to a data frame
+head(res_uni_bidirectional_4)  #check the first rows
+```
+
+# Plot PCA
+
+```{r}
+#| label: plot PCA
+#| include: true
+
+## PCA function
+
+PCA <- function(mat,color_pca="",shape_pca= "", label_pca= "",save_plot= "no", name_of_plot= "PCA", comp1=1, comp2=2, pdf_width=12, pdf_height=12){
+  #Get the differential expressed values from the comparrison interested,
+  #extract the normalized values from the assay of vsd and plot them.
+  #Giving condition and group from your design table
+  
+  #1. Extract the counts.
+  dt <- mat
+  
+  #2. Perform pca
+  pca_dt <- prcomp(t(dt))
+  cat("PCA running...\n")
+  # Sys.sleep(0.2)
+  
+  #3. Extract percentVar data.
+  percentVar_dt <- pca_dt$sdev^2/sum(pca_dt$sdev^2)
+  cat("Percents calculated...\n")
+  # Sys.sleep(0.2)
+  
+  #4. Create the new dataframe to plot.
+  dt_f <- data.frame(PC1=pca_dt$x[,comp1],
+                     PC2=pca_dt$x[,comp2],
+                     color_pca=color_pca,
+                     shape_pca=shape_pca,
+                     label_pca= label_pca)
+  cat("Data frame built...\n")
+  # Sys.sleep(0.2)
+  
+  #5. Plot it 
+  cat("Plotting...\n")
+  # Sys.sleep(0.2)
+  print(save_plot)
+  require(ggplot2)
+  require(ggrepel)
+  if (save_plot== "no") {
+    pca_p <- ggplot(data = dt_f, aes_string(x = paste0("PC1"),
+                                            y = paste0("PC2"),
+                                            color = "color_pca", 
+                                            shape= "shape_pca", label="label_pca")) +
+      geom_point(size = 5) +
+      geom_text_repel(size= 3, max.overlaps = 50, 
+                      box.padding   = 1.5,point.padding = 0.5,force = 50)+
+      xlab(paste0("PC", comp1,": ", 
+                  round(percentVar_dt[comp1] * 100), "% variance")) +
+      ylab(paste0("PC",comp2,": ",
+                  round(percentVar_dt[comp2] * 100), "% variance")) +
+      # coord_fixed()+ 
+      NULL
+  }
+  if (save_plot== "yes"){
+    
+    cat("Saving plot as: ",paste0(name_of_plot,"...\n"))
+    pca_p <- ggplot(data = dt_f, aes_string(x = paste0("PC",comp1),
+                                            y = paste0("PC",comp2),
+                                            color = "color_pca", 
+                                            shape= "shape_pca", label="label_pca")) +
+      geom_text_repel(size= 3, max.overlaps = 50, 
+                      box.padding   = 1.5,
+                      point.padding = 0.5,force = 50)+
+      geom_point(size = 5) +
+      xlab(paste0("PC", comp1,": ", round(percentVar_dt[comp1] * 100), "% variance")) +
+      ylab(paste0("PC",comp2,": ", round(percentVar_dt[comp2] * 100), "% variance")) +
+      # coord_fixed()+ 
+      NULL
+    print(pca_p)
+    dev.copy(pdf, paste0(name_of_plot,".pdf"),width = pdf_width,height = pdf_height)
+    dev.off()
+  }
+  # Sys.sleep(0.2)
+  cat("Done")
+  print(pca_p)
+  
+  #return(pca_p)
+}
+
+#run the PCA function
+PCA(counts110_trimmed_colremove, color_pca = factor(new_metadata$time), shape_pca = factor(new_metadata$flow_profile), save_plot = "no", name_of_plot = "PCA_nolog")
+
+```
+
+# Save the differential expressed genes (DEGs) in each comparison
+
+```{r}
+#| label: Save the differential expressed genes
+#| include: true
+
+#put 1 instead of the NAs because it causes problems in the volcano plot
+res_uni_bidirectional_24$padj[is.na(res_uni_bidirectional_24$padj)] <- 1
+res_uni_bidirectional_4$padj[is.na(res_uni_bidirectional_4$padj)] <- 1
+
+#save the differential expressed genes in each comparison
+res_uni_bidirectional_24_padj0.05 <- subset(res_uni_bidirectional_24, padj < 0.05)
+write.csv(as.data.frame(res_uni_bidirectional_24_padj0.05), file="unidrectional_vs_bidirectional_24_0.05_nopb.csv")
+head(res_uni_bidirectional_24_padj0.05)
+
+res_uni_bidirectional_4_padj0.05 <- subset(res_uni_bidirectional_4, padj < 0.05)
+write.csv(as.data.frame(res_uni_bidirectional_4_padj0.05), file="unidrectional_vs_bidirectional_4_0.05_nopb.csv")
+head(res_uni_bidirectional_4_padj0.05)
+
+```
+
+# Add ENSMBL gene ids to the results
+
+```{r}
+#| label: ENSMBL gene ids
+#| include: true
+
+#convert gene ids to names using biomart
+symbol_to_ensmbl_human <- function(){
+  require(biomaRt) # load biomaRt package
+  ensembl <- useMart(biomart = "ensembl", dataset = "hsapiens_gene_ensembl", host = "https://www.ensembl.org")
+  # use the ensembl mart
+  # query biomart
+  annotations <- getBM(attributes = c("ensembl_gene_id","hgnc_symbol"), # get the ensembl gene id and the hgnc symbol
+                       mart = ensembl)# the ensembl mart
+  return(annotations) # return the results
+}
+
+#get the gene ids and convert to data frame
+gene_id <- symbol_to_ensmbl_human() 
+gene_id_df <- as.data.frame(gene_id) # convert the results to a data frame
+head(gene_id_df) #check the first rows
+
+#add the ensembl gene id as a column, merge with the data and save the csv
+res_uni_bidirectional_24$ensembl_gene_id <- rownames(res_uni_bidirectional_24)
+res_uni_bidirectional_4$ensembl_gene_id <- rownames(res_uni_bidirectional_4) 
+res_uni_bidirectional_24merged <- merge(res_uni_bidirectional_24, gene_id_df,by.x = "ensembl_gene_id",all.x=TRUE)
+res_uni_bidirectional_4hmerged <- merge(res_uni_bidirectional_4, gene_id_df, by.x = "ensembl_gene_id", all.x=TRUE)
+
+res_uni_bidirectional_24merged_padj0.05 <- subset(res_uni_bidirectional_24merged, padj < 0.05)
+write.csv(as.data.frame(res_uni_bidirectional_24merged_padj0.05), file="unidrectional_vs_bidirectional_24_0.05_nopb_withsymbol.csv")
+head(res_uni_bidirectional_24merged_padj0.05)
+
+res_uni_bidirectional_4hmerged_padj0.05 <- subset(res_uni_bidirectional_4hmerged, padj < 0.05)
+write.csv(as.data.frame(res_uni_bidirectional_4hmerged_padj0.05), file="unidrectional_vs_bidirectional_4_0.05_nopb_withsymbol.csv")
+head(res_uni_bidirectional_4hmerged_padj0.05)
+
+```
+
+# Plot upregulated and downregulated genes in volcano plots
+
+```{r}
+#| label: Volcano plot
+#| include: true
+
+# VOLCANO FUNCTION #
+####################
+
+
+draw_volcano<- function(fileinput, title) {
+  
+  require(ggplot2)
+  require(ggrepel)
+  require(clusterProfiler)
+  require(tidyverse)
+  
+  
+  # read input file
+  # drawing plots
+  ggplot(data =fileinput , aes(x = log2FoldChange, y = -log10(padj))) +
+    # draw lines
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", col = "chartreuse4") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dotted", col = "darkgoldenrod") +
+    geom_vline(xintercept = 0, linetype = "dashed")+
+    # draw points
+    geom_point(x = fileinput$log2FoldChange, y = -log10(fileinput$padj),alpha = 0.5, size = 2,color="grey51") +
+    # draw coloured points
+    geom_point(data = fileinput[which(fileinput$padj < 0.05 & fileinput$log2FoldChange < -0.585),],
+               aes(x=log2FoldChange, y = -log10(padj)), shape = 21, color = "royalblue2", fill = "royalblue2",
+               alpha = 0.5, size = 2) +
+    geom_point(data = fileinput[which(fileinput$padj < 0.05 & fileinput$log2FoldChange <= - 1),],
+               aes(x=log2FoldChange, y = -log10(padj)), shape = 21, color = "royalblue4", fill = "royalblue4",
+               alpha = 0.5, size = 2) +
+    geom_point(data = fileinput[which(fileinput$padj < 0.05 & fileinput$log2FoldChange > 0.585),],
+               aes(x=log2FoldChange, y = -log10(padj)), shape = 21, color = "red2", fill = "red2",
+               alpha = 0.5, size = 2) +
+    geom_point(data = fileinput[which(fileinput$padj < 0.05 & fileinput$log2FoldChange >= 1),],
+               aes(x=log2FoldChange, y = -log10(padj)), shape = 21, color = "red4", fill = "red4",
+               alpha = 0.5, size = 2) +
+    # x axis scale
+    scale_x_continuous(breaks = seq(round(min(fileinput$log2FoldChange)- 0.5),round(max(fileinput$log2FoldChange)+ 0.5),by = 1), limits = c(round(min(fileinput$log2FoldChange)-1),round(max(fileinput$log2FoldChange)+1))) + xlab("log2FoldChange") + #ylab("-Log10(p.value)") +
+    
+    scale_y_continuous(breaks = seq(0,round(-log10(min(fileinput$padj))+1),by = 4), limits = c(0,round(-log10(min(fileinput$padj))+1))) + ylab("-Log10(pAdjusted)") + # ylab("-log10(p.value)")+
+    
+    # set title
+    ggtitle(title)+
+    # x and y axis limits
+    # black and white theme
+    theme_bw() +
+    # center title
+    theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size = 10), axis.title.x = element_text(size = 10),
+          axis.title.y = element_text(size = 10))
+}
+
+
+##volcano plot : tilter vs pump at 4h
+a = draw_volcano(res_uni_bidirectional_4hmerged, "tilter vs pump 4h") # draw the volcano plot
+a
+# add labels: make a list of top 25 genes and bottom 25 genes 
+options(ggrepel.max.overlaps=50) # set the maximum number of overlaps
+label_set_top <- res_uni_bidirectional_4hmerged %>% arrange(desc(log2FoldChange)) %>% head(25) %>% pull(hgnc_symbol) 
+label_set_top 
+
+label_set_bottom <- res_uni_bidirectional_4hmerged %>% arrange(desc(log2FoldChange)) %>% tail(25) %>% pull(hgnc_symbol) 
+label_set_bottom 
+# combine the top and bottom genes altered genes 
+label_set <- c(label_set_bottom, label_set_top)
+label_set
+# add the labels to the plot
+a2= a + 
+  geom_text_repel(data = res_uni_bidirectional_4hmerged[res_uni_bidirectional_4hmerged$hgnc_symbol %in% label_set,],aes(label=res_uni_bidirectional_4hmerged[res_uni_bidirectional_4hmerged$hgnc_symbol %in% label_set,]$hgnc_symbol),
+  )
+a2
+
+
+##volcano plot : tilter vs pump at 24h
+
+b = draw_volcano(res_uni_bidirectional_24merged,"tilter vs pump 24h")# draw the volcano plot
+b
+# add labels: make a list of top 25 genes and bottom 25 genes
+options(ggrepel.max.overlaps=50) # set the maximum number of overlaps
+label_set_top <- res_uni_bidirectional_24merged %>% arrange(desc(log2FoldChange)) %>% head(25) %>% pull(hgnc_symbol)
+label_set_top
+
+label_set_bottom <- res_uni_bidirectional_24merged %>% arrange(desc(log2FoldChange)) %>% tail(25) %>% pull(hgnc_symbol)
+label_set_bottom
+# combine the top and bottom genes altered genes 
+label_set <- c(label_set_bottom, label_set_top)
+# add the labels to the plot
+b2= b + 
+  geom_text_repel(data = res_uni_bidirectional_24merged[res_uni_bidirectional_24merged$hgnc_symbol %in% label_set,],aes(label=res_uni_bidirectional_24merged[res_uni_bidirectional_24merged$hgnc_symbol %in% label_set,]$hgnc_symbol),
+  )
+b2
+
+
+```
+
+# GO analysis for DEGs
+
+```{r}
+#| label: GO plot
+#| include: true
+##gene ontology
+
+GO_function <- function(gene_list, pval  = 0.05, onto= "MF", prefix="", org="human"){
+  require(clusterProfiler)
+  require(ReactomePA)
+  if(org=="mouse"){
+    orgdb <- "org.Mm.eg.db"
+    org_reactome <- "mouse"
+  }else if(org=="human"){
+    orgdb <- "org.Hs.eg.db"
+    org_reactome <- "human"
+  }else{
+    message("Please enter a valid organism (mouse or human)")
+  }
+  
+  if(onto %in% c("MF", "CC", "BP")){
+    
+    
+    compGO <- enrichGO(gene = gene_list, pvalueCutoff  = pval,keyType = "SYMBOL", 
+                       pAdjustMethod = "BH",OrgDb = orgdb, ont = onto)
+  }else if(onto=="reactome"){
+    gene_list <- bitr(gene_list, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = orgdb) #SYMBOL
+    gene_list <- gene_list$ENTREZID
+    compGO <- enrichPathway(gene = gene_list, pvalueCutoff  = 0.05, organism= org_reactome,      readable = TRUE)
+    
+  }else{
+    message("Please enter a valid GO term")
+  }
+  
+  
+  
+  if(is.null(compGO)){
+    message(paste0("No GO:",onto, " obtained"))
+    message(paste0("****************************************************************************************"))
+    message(paste0("\n"))
+    
+  }else {
+    
+    compGO_df <- as.data.frame(compGO)
+    compGO_df$GeneRatio_decimal <- compGO_df$GeneRatio
+    compGO_df$GeneRatio_decimal <- sapply(compGO_df$GeneRatio_decimal, 
+                                          function(x) (eval(parse(text = as.character(x)))))
+    compGO_df$BgRatio_decimal <- compGO_df$BgRatio
+    compGO_df$BgRatio_decimal <- sapply(compGO_df$BgRatio_decimal, 
+                                        function(x) (eval(parse(text = as.character(x)))))
+    compGO_df <- compGO_df %>% tidyr::separate_rows(geneID, sep = "/", convert = FALSE) %>%
+      arrange(desc(GeneRatio_decimal))
+    compGO_df %>% head 
+    
+    if(nrow(compGO_df)==0){
+      message(paste0("No GO:",onto, " obtained"))
+      message(paste0("****************************************************************************************"))
+      message(paste0("\n"))
+      
+    } else{
+      
+      write.csv(compGO_df, paste0(prefix,"_GO_",onto, "_pathways.csv"))
+      
+      
+      full_name= switch(onto,
+                        MF= "Moleuclar Function",
+                        CC= "Cellular Components",
+                        BP= "Biological Pathways"
+      )                                           
+      
+      print(dotplot(compGO, showCategory = 15, title = paste0("GO Pathway Enrichment Analysis \n",full_name), 
+                    font.size = 6))
+      dev.copy(
+        pdf,
+        file = paste0(prefix,"_GO_",onto, "_pathways.pdf"),
+        width = 12,
+        height = 16
+      )
+      dev.off ()
+      
+      
+      
+      
+      message(paste0("Pathway analysis GO:",onto, " done"))
+      message(paste0("****************************************************************************************"))
+      message(paste0("\n"))
+      
+    }
+  }
+}
+
+
+
+# run the GO function : tilter vs pump at 4h
+dir.create("results/GO_analysis/analysis_withoutpb", recursive = TRUE)
+GO_function((res_uni_bidirectional_4hmerged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="MF",prefix="results/GO_analysis/pump_tilter_4h" )
+GO_function((res_uni_bidirectional_4hmerged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="CC",prefix="results/GO_analysis/pump_tilter_4h",org = "human" )
+GO_function((res_uni_bidirectional_4hmerged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="BP",prefix="results/GO_analysis/pump_tilter_4h" )
+
+##volcano plot : tilter vs pump at 24h
+GO_function((res_uni_bidirectional_24merged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="MF",prefix="results/GO_analysis/analysis_withoutpb/pump_tilter_24h" )
+GO_function((res_uni_bidirectional_24merged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="CC",prefix="results/GO_analysis/analysis_withoutpb/pump_tilter_24h",org = "human" )
+GO_function((res_uni_bidirectional_24merged %>% filter(padj<0.05) %>% pull(hgnc_symbol)), onto="BP",prefix="results/GO_analysis/analysis_withoutpb/pump_tilter_24h" )
+```
+
+## GO plots for selected pathways
+
+```{r}
+#| label: GO of selected pathways
+#| include: true
+### GO analysis for the selected pathways for tilter and pump at 24h time point 
+
+GO_res_uni_bidirectional_24_ <- read.csv("pump_tilter_24h_GO_BP_pathways.csv") # read the GO analysis results obtained in the previous step
+head(GO_res_uni_bidirectional_24_) # check the first rows
+#make a list of the select the pathways of interest
+selected_pathways_24h <- c('ERK1 and ERK2 cascade','epithelial cell migration','leukocyte migration','sprouting angiogenesis','regeneration',
+                           'regulation of microtubule cytoskeleton organization','substrate adhesion-dependent cell spreading','chemokine production',
+                           'microtubule depolymerization', 'positive regulation of vasculature development')
+# check the selected pathways
+selected_pathways_24h 
+GO_res_uni_bidirectional_24_ <- GO_res_uni_bidirectional_24_[GO_res_uni_bidirectional_24_$Description %in% selected_pathways_24h,] # subset the GO analysis results to the selected pathways
+GO_res_uni_bidirectional_24_ <- GO_res_uni_bidirectional_24_ %>% arrange((GeneRatio_decimal)) # arrange the results by GeneRatio_decimal
+GO_res_uni_bidirectional_24_$Description <- factor(GO_res_uni_bidirectional_24_$Description, levels=unique(GO_res_uni_bidirectional_24_$Description)) # set the levels of the Description column
+GO_res_uni_bidirectional_24_ %>% dim # check the dimensions of the data
+GO_res_uni_bidirectional_24_ %>% head # check the first rows
+
+options(ggrepel.max.overlaps = 50) # set the maximum number of overlaps
+ggplot(data = (GO_res_uni_bidirectional_24_  ) , # make ggplot object
+       aes(x = GeneRatio_decimal, y = Description,  # x axis is GeneRatio_decimal, y axis is Description
+           color = p.adjust, size = Count)) + # color by p.adjust, size of dot by Count
+  geom_point(alpha = 0.5) + # add points with alpha 0.5
+  scale_color_gradient(low = "red3", high = "blue4",guide=guide_colourbar(reverse = TRUE)) + # set color gradient to blue to red
+  theme_bw() + # set theme to black and white
+  labs(title = paste0("Tilter vs Pump 24h Selected Biological Processes"), x = "GeneRatio", y = "") + # set title and axis labels
+  theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size = 10), # set theme for plot title and axis text
+        axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10),
+        axis.text.x=element_text(colour="black"),
+        axis.text.y=element_text(colour="black")) +
+  # change color of Counts in legend to black
+  guides(size = guide_legend(override.aes = list(color = "black", alpha=1)))
+
+### GO analysis for the selected pathways for tilter and pump at 4h time point 
+GO_res_uni_bidirectional_4_ <- read.csv("pump_tilter_4h_GO_BP_pathways.csv") # read the GO analysis results obtained in the previous step
+#make a list of the select the pathways of interest
+selected_pathways_4h <- c('transmembrane receptor protein serine/threonine kinase signaling pathway','ERK1 and ERK2 cascade',
+                          'p38MAPK cascade','stress−activated MAPK cascade','BMP signaling pathway','SMAD protein signal transduction','JNK cascade','canonical NF-kappaB signal transduction')
+# check the selected pathways
+selected_pathways_4h
+
+GO_res_uni_bidirectional_4_ <- GO_res_uni_bidirectional_4_[GO_res_uni_bidirectional_4_$Description %in% selected_pathways_4h,] # subset the GO analysis results to the selected pathways
+GO_res_uni_bidirectional_4_ <- GO_res_uni_bidirectional_4_ %>% arrange((GeneRatio_decimal)) # arrange the results by GeneRatio_decimal
+GO_res_uni_bidirectional_4_$Description <- factor(GO_res_uni_bidirectional_4_$Description, levels=unique(GO_res_uni_bidirectional_4_$Description)) # set the levels of the Description column
+GO_res_uni_bidirectional_4_ %>% dim # check the dimensions of the data
+GO_res_uni_bidirectional_4_ %>% head # check the first rows
+
+#create dotplot for the GO terms with GeneRatio_decimal on x axis decreasing gene ratio , and GO term on y axis, color by p.adjust size of dot by Count
+
+options(ggrepel.max.overlaps = 50) # set the maximum number of overlaps
+ggplot(data = (GO_res_uni_bidirectional_4_  ) , # make ggplot object
+       aes(x = GeneRatio_decimal, y = Description,  # x axis is GeneRatio_decimal, y axis is Description
+           color = p.adjust, size = Count)) + # color by p.adjust, size of dot by Count
+  geom_point(alpha = 0.5) + # add points with alpha 0.5
+  scale_color_gradient(low = "red3", high = "blue4",guide=guide_colourbar(reverse = TRUE)) + # set color gradient to blue to red
+  theme_bw() + # set theme to black and white
+  labs(title = paste0("Tilter vs Pump 24h Selected Biological Processes"), x = "GeneRatio", y = "") + # set title and axis labels
+  theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size = 10), # set theme for plot title and axis text
+        axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10),
+        axis.text.x=element_text(colour="black"),
+        axis.text.y=element_text(colour="black")) +
+  # change color of Counts in legend to black
+  guides(size = guide_legend(override.aes = list(color = "black", alpha=1)))
+
+```
+
+# Plot Heatmap of top 500 genes across all samples
+
+```{r}
+#| label: Heatmap
+#| include: true
+##heatmap
+#create a normalized data and select number of genes for heatmap
+vst_data <- vst(dds_flow_time, blind = FALSE) # create a variance stabilized data
+heatmap_matrix <- assay(vst_data) # create a matrix of the variance stabilized data
+
+#create a normalized data and select the top 500 for heatmap across all conditions
+top_genes_500 <- head(order(rowVars(heatmap_matrix), decreasing = TRUE), 500) # select the top 500 genes
+heatmap_matrix_all <- heatmap_matrix[top_genes_500, ] # subset the heatmap matrix to the top 500 genes
+heatmap_matrix_all_subset_col <- heatmap_matrix_all[, c("e3_4h_t","e4_4h_t","e6_4h_t","e3_4h_p", "e4_4h_p","e6_4h_p","e3_24h_t","e4_24h_t","e6_24h_t", "e3_24h_p","e4_24h_p","e6_24h_p")] # subset the heatmap matrix to the selected columns
+colnames(heatmap_matrix_all_subset_col) # check the column names
+
+# create the heatmap annotation
+ha = HeatmapAnnotation(
+  Genotype = rep(c("4h_t","4h_p","24h_t","24h_p"),each=3),
+  col = list(Genotype = c(
+    "4h_t"="#DE9F9D","4h_p"="#B5C7DC","24h_t" ="#E57A77", "24h_p"="#6391C5"
+  )
+  
+  ),
+  # change font size of the annotation
+  annotation_name_gp = grid::gpar(fontsize = 10),
+  annotation_legend_param = list(
+    # title = "Expression Levels",
+    title_gp = gpar(fontsize = 10),
+    labels_gp = gpar(fontsize = 10),
+    grid_width	= unit(5,"point"),
+    grid_height	= unit(5,"point")
+  )
+) 
+Heatmap(heatmap_matrix_all_subset_col, name="Expression Levels", 
+        cluster_columns = FALSE,  
+        cluster_rows = TRUE,  
+        row_dend_width = unit(0, "cm"), 
+        show_column_names = FALSE,
+        show_row_names = FALSE,
+        top_annotation = ha,
+        gap=unit(2, "point"),
+        border= TRUE,
+        border_gp = gpar(col = "grey40"),
+        row_title_gp = gpar(fontsize = 5), # change row split font size
+        row_title_rot = 0, 
+        bottom_annotation = ha,
+        heatmap_legend_param = list(
+          title = "Expression Levels",
+          title_gp = gpar(fontsize = 10),
+          labels_gp = gpar(fontsize = 10),
+          grid_width	= unit(5,"point"),
+          grid_height	= unit(5,"point")
+        ),
+        row_names_gp = grid::gpar(fontsize = 14)
+)
+```
+
+## Plot Heatmap of selected pathways
+
+```{r}
+#| label: heatmap of selected pathways
+#| include: true
+
+###selected pathway heatmaps comparing tilter and pump at 24h time point
+heatmap_matrix <- as.data.frame(heatmap_matrix) # convert the matrix to a data frame
+#add the row names as a new column
+heatmap_matrix$ensembl_gene_id <- rownames(heatmap_matrix) # add the row names as a new column
+heatmap_matrix_merged <- merge(heatmap_matrix, gene_id_df,by.x = "ensembl_gene_id",all.x=TRUE) # merge the data with the gene names
+# subset the data to the selected genes
+heatmap_matrix_merged_selectedpathwyas_24_all <- heatmap_matrix_merged[heatmap_matrix_merged$hgnc_symbol %in% c('SELE', 'KITLG', 'STK10', 'TGFB2', 'HMOX1', 'FLT1', 'IL1A', 'PGF', 'TNFSF18', 'EDNRB',
+                                                                                                                'IL33', 'CH25H', 'LYST', 'ADAM17', 'VCAM1', 'CXCL5', 'ITGA2', 'LGALS9', 'SELP', 'ANO6',
+                                                                                                                'GBA1', 'CALR', 'CSF1', 'SELL', 'HMGB1', 'CCL23', 'CCL16', 'CFLAR', 'CEACAM1', 'NOX4',
+                                                                                                                'FAM83D', 'HMGCR', 'GBP1', 'DUSP4', 'BMP4', 'SPRY2', 'ACKR3', 'MFHAS1', 'CNKSR3', 'ATF3',
+                                                                                                                'NEK10', 'BMPER', 'CDK1', 'TNFAIP8L3', 'IQGAP3', 'MIR126', 'ANLN', 'PTGS2', 'ANGPT2', 'RGCC',
+                                                                                                                'SASH1', 'PIK3R3', 'PROX1', 'NR4A1', 'EFNB2', 'MACF1', 'KLF4', 'HAS2', 'NANOS1', 'FGF16', 'E2F2'
+                                                                                                                , 'RECK', 'E2F8', 'TSPAN18', 'E2F7', 'AURKA', 'PCNA', 'POSTN', 'LPIN1', 'NREP', 'ATIC', 'CCNA2',
+                                                                                                                'ADM', 'NNMT', 'TYMS', 'DHFR', 'SPAAR', 'TACC3', 'NAV3', 'SPAG5', 'MAP2', 'TPX2', 'STMN1', 'KIF18A',
+                                                                                                                'STIL', 'HAUS8', 'PSRC1', 'SKA1', 'SKA3', 'PLK1', 'FAM107A', 'NUP62', 'BRCA1', 'HIPK2', 'F3', 'AGO2'
+                                                                                                                , 'ADM2', 'ST6GAL1', 'UNC13D', 'MERTK', 'AKIP1', 'PEAK1', 'S100A10', 'OAS1', 'OAS3', 'IL1RL1', 'KIF2C', 'NCKAP5', 'KIF18B'),] 
+
+#prepare the selected data for a plotting a heatmap
+heatmap_matrix_merged_selectedpathwyas_24_all <- subset(heatmap_matrix_merged_selectedpathwyas_24_all, select = -ensembl_gene_id) # subset the data to remove the ensembl gene id
+rownames(heatmap_matrix_merged_selectedpathwyas_24_all) <- heatmap_matrix_merged_selectedpathwyas_24_all$hgnc_symbol # set the row names to the hgnc symbol
+heatmap_matrix_merged_selectedpathwyas_24_all <- as.data.frame(heatmap_matrix_merged_selectedpathwyas_24_all) # convert the data to a data frame
+heatmap_matrix_merged_selectedpathwyas_24_all <- subset(heatmap_matrix_merged_selectedpathwyas_24_all, select = -hgnc_symbol) # subset the data to remove the hgnc symbol
+heatmap_matrix_merged_selectedpathwyas_24_all <- as.matrix(heatmap_matrix_merged_selectedpathwyas_24_all) # convert the data to a matrix
+# select the columns of interest
+heatmap_matrix_merged_selectedpathwyas_24_all <- heatmap_matrix_merged_selectedpathwyas_24_all[, c("e3_24h_t","e4_24h_t","e6_24h_t", "e3_24h_p","e4_24h_p","e6_24h_p")]
+colnames(heatmap_matrix_merged_selectedpathwyas_24_all) # check the column names
+
+##heatmap of the selected genes comparing tilter and pump at 24h time point
+# create the heatmap annotation
+ha = HeatmapAnnotation(
+  Genotype = rep(c("24h_t","24h_p"),each=3),
+  col = list(Genotype = c(
+    "24h_t" ="#E57A77", "24h_p"="#6391C5"
+  )
+  
+  ),
+  # change font size of the annotation
+  annotation_name_gp = grid::gpar(fontsize = 10),
+  annotation_legend_param = list(
+    # title = "Expression Levels",
+    title_gp = gpar(fontsize = 10),
+    labels_gp = gpar(fontsize = 10),
+    grid_width	= unit(5,"point"),
+    grid_height	= unit(5,"point")
+  )
+)
+
+Heatmap(heatmap_matrix_merged_selectedpathwyas_24_all, name="Expression Levels", 
+        cluster_columns = FALSE,  
+        cluster_rows = TRUE,  
+        row_dend_width = unit(0, "cm"), 
+        show_column_names = FALSE,
+        show_row_names = TRUE,
+        top_annotation = ha,
+        gap=unit(2, "point"),
+        border= TRUE,
+        border_gp = gpar(col = "grey40"),
+        row_title_gp = gpar(fontsize = 5), # change row split font size
+        row_title_rot = 0, 
+        bottom_annotation = ha,
+        heatmap_legend_param = list(
+          title = "Expression Levels",
+          title_gp = gpar(fontsize = 10),
+          labels_gp = gpar(fontsize = 10),
+          grid_width	= unit(5,"point"),
+          grid_height	= unit(5,"point")
+        ),
+        row_names_gp = grid::gpar(fontsize = 8)
+)
+
+
+##subset the selected genes heatmaps comparing tilter and pump at 4h timepoint
+heatmap_matrix_merged_selectedpathwyas_4_all <- heatmap_matrix_merged[heatmap_matrix_merged$hgnc_symbol %in% c("TAB2", "SPHK2", "HMOX1", "NFKB1", "TRIM25", "EDNRB",
+                                                                                                               "DAB2IP", "PELI2", "BRD4", "SLC20A1", "CXXC5", "C18orf32",
+                                                                                                               "PER1", "ROR1", "PELI1", "RAPGEF2", "BTN2A2", "BMP4", "LIF",
+                                                                                                               "SPRY2", "MAP3K12", "ACKR3", "EGFR", "MFHAS1", "EPHB1", "ATF3", 
+                                                                                                               "BMPER", "PDGFA", "HIPK2", "PHLPP1", "SH2D3C", "SH3RF1", "SH3RF3",
+                                                                                                               "SMAD7", "TGFBR1", "ZMIZ1", "PMEPA1", "SMAD6", "SKI", "LDLRAD4", "BMPR2",
+                                                                                                               "MAP2K3", "ZFP36", "MAPKAPK2", "SPHK1", "RELL1", "EGR1", "NOG", "SMURF1",
+                                                                                                               "INTS9", "APPL2", "NRROS"),]
+
+heatmap_matrix_merged_selectedpathwyas_4_all <- subset(heatmap_matrix_merged_selectedpathwyas_4_all, select = -ensembl_gene_id) # subset the data to remove the ensembl gene id
+rownames(heatmap_matrix_merged_selectedpathwyas_4_all) <- heatmap_matrix_merged_selectedpathwyas_4_all$hgnc_symbol # set the row names to the hgnc symbol
+heatmap_matrix_merged_selectedpathwyas_4_all <- as.data.frame(heatmap_matrix_merged_selectedpathwyas_4_all) # convert the data to a data frame
+heatmap_matrix_merged_selectedpathwyas_4_all <- subset(heatmap_matrix_merged_selectedpathwyas_4_all, select = -hgnc_symbol) # subset the data to remove the hgnc symbol
+heatmap_matrix_merged_selectedpathwyas_4_all <- as.matrix(heatmap_matrix_merged_selectedpathwyas_4_all) # convert the data to a matrix
+# select the columns of interest
+heatmap_matrix_merged_selectedpathwyas_4_all <- heatmap_matrix_merged_selectedpathwyas_4_all[, c("e3_4h_t","e4_4h_t","e6_4h_t", "e3_4h_p","e4_4h_p","e6_4h_p")]
+colnames(heatmap_matrix_merged_selectedpathwyas_4_all) # check the column names
+# create the heatmap annotation
+
+ha = HeatmapAnnotation(
+  Genotype = rep(c("4h_p","4h_t" ),each=3),
+  col = list(Genotype = c(
+    "4h_p"="#B5C7DC","4h_t"="#DE9F9D"
+  )
+  
+  ),
+  # change font size of the annotation
+  annotation_name_gp = grid::gpar(fontsize = 10),
+  annotation_legend_param = list(
+    # title = "Expression Levels",
+    title_gp = gpar(fontsize = 10),
+    labels_gp = gpar(fontsize = 10),
+    grid_width	= unit(5,"point"),
+    grid_height	= unit(5,"point")
+  )
+)
+
+Heatmap(heatmap_matrix_merged_selectedpathwyas_4_all, name="Expression Levels", 
+        cluster_columns = FALSE,  
+        cluster_rows = TRUE,  
+        row_dend_width = unit(0, "cm"), 
+        show_column_names = FALSE,
+        show_row_names = TRUE,
+        top_annotation = ha,
+        gap=unit(2, "point"),
+        border= TRUE,
+        border_gp = gpar(col = "grey40"),
+        row_title_gp = gpar(fontsize = 5), # change row split font size
+        row_title_rot = 0, 
+        bottom_annotation = ha,
+        heatmap_legend_param = list(
+          title = "Expression Levels",
+          title_gp = gpar(fontsize = 10),
+          labels_gp = gpar(fontsize = 10),
+          grid_width	= unit(5,"point"),
+          grid_height	= unit(5,"point")
+        ),
+        row_names_gp = grid::gpar(fontsize = 8)
+)
+
+```
+
+```{r}
+# save.image("workspace/Deseq_cleanedup_analysis_160224.Rdata") # save the workspace
+```
