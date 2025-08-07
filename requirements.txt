@@ -1,0 +1,8 @@
+opencv-python>=4.5
+numpy>=1.19
+pandas>=1.1
+matplotlib>=3.3
+trackpy>=0.5
+scipy>=1.5
+tqdm>=4.48
+openpyxl>=3.0  
